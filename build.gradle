@@ -20,6 +20,14 @@ buildscript {
     junitPlatformVersion = "1.0.2"
   }
   repositories {
+    mavenCentral()
+    maven {
+      credentials {
+        username smartThingsUserName
+        password smartThingsPassword
+      }
+      url "https://smartthings.jfrog.io/smartthings/libs-release-local"
+    }
     jcenter()
     maven { url "http://spinnaker.bintray.com/gradle" }
     maven { url "https://plugins.gradle.org/m2/" }
@@ -33,9 +41,23 @@ buildscript {
 }
 
 allprojects {
-  group = "com.netflix.spinnaker.clouddriver"
+  group = "com.smartthings.spinnaker.clouddriver"
   apply plugin: 'spinnaker.base-project'
   apply plugin: 'groovy'
+
+  apply plugin: "maven-publish"
+
+  publishing {
+    repositories {
+      maven {
+        credentials {
+          username smartThingsUserName
+          password smartThingsPassword
+        }
+        url "https://smartthings.artifactoryonline.com/smartthings/libs-release-local"
+      }
+    }
+  }
 
   ext {
     spinnakerDependenciesVersion = '1.9.0'
