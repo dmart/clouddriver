@@ -88,7 +88,7 @@ public abstract class KubernetesV2CachingAgent extends KubernetesCachingAgent<Ku
             return credentials.list(primaryKinds(), n);
           } catch (KubectlException e) {
             log.warn("Failed to read kind {} from namespace {}: {}", primaryKinds(), n, e.getMessage());
-            return null;
+            throw e;
           }
         })
         .filter(Objects::nonNull)
@@ -177,6 +177,11 @@ public abstract class KubernetesV2CachingAgent extends KubernetesCachingAgent<Ku
         .collect(Collectors.toList()));
 
     resourceData.addAll(invertedRelationships);
+
+    resourceData.addAll(resourceData.stream()
+      .map(rs -> KubernetesCacheDataConverter.getClusterRelationships(accountName, rs))
+      .filter(Objects::nonNull)
+      .collect(Collectors.toList()));
 
     Map<String, Collection<CacheData>> entries = KubernetesCacheDataConverter.stratifyCacheDataByGroup(KubernetesCacheDataConverter.dedupCacheData(resourceData));
     KubernetesCacheDataConverter.logStratifiedCacheData(getAgentType(), entries);
