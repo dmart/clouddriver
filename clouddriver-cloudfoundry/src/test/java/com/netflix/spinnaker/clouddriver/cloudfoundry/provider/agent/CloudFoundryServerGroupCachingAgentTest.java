@@ -9,6 +9,7 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.*;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.netflix.spectator.api.Registry;
@@ -25,6 +26,7 @@ import com.netflix.spinnaker.clouddriver.cloudfoundry.client.Applications;
 import com.netflix.spinnaker.clouddriver.cloudfoundry.client.CloudFoundryClient;
 import com.netflix.spinnaker.clouddriver.cloudfoundry.client.Organizations;
 import com.netflix.spinnaker.clouddriver.cloudfoundry.model.*;
+import com.netflix.spinnaker.clouddriver.cloudfoundry.security.CloudFoundryCredentials;
 import com.netflix.spinnaker.moniker.Moniker;
 import io.vavr.collection.HashMap;
 import io.vavr.collection.HashSet;
@@ -34,6 +36,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class CloudFoundryServerGroupCachingAgentTest {
@@ -42,10 +45,11 @@ class CloudFoundryServerGroupCachingAgentTest {
   private ObjectMapper objectMapper =
       new ObjectMapper().disable(MapperFeature.DEFAULT_VIEW_INCLUSION);
   private CloudFoundryClient cloudFoundryClient = mock(CloudFoundryClient.class);
+  private CloudFoundryCredentials credentials = mock(CloudFoundryCredentials.class);
   private Registry registry = mock(Registry.class);
   private final Clock internalClock = Clock.fixed(now, ZoneId.systemDefault());
   private CloudFoundryServerGroupCachingAgent cloudFoundryServerGroupCachingAgent =
-      new CloudFoundryServerGroupCachingAgent(accountName, cloudFoundryClient, registry);
+      new CloudFoundryServerGroupCachingAgent(credentials, registry);
   private ProviderCache mockProviderCache = mock(ProviderCache.class);
   private String spaceId = "space-guid";
   private String spaceName = "space";
@@ -57,6 +61,66 @@ class CloudFoundryServerGroupCachingAgentTest {
           .name(spaceName)
           .organization(CloudFoundryOrganization.builder().id(orgId).name(orgName).build())
           .build();
+
+  @BeforeEach
+  void before() {
+    when(credentials.getClient()).thenReturn(cloudFoundryClient);
+    when(credentials.getName()).thenReturn(accountName);
+  }
+
+  @Test
+  void buildOnDemandCacheDataShouldIncludeServerGroupAttributes() throws JsonProcessingException {
+
+    CloudFoundryInstance cloudFoundryInstance =
+        CloudFoundryInstance.builder().appGuid("instance-guid-1").key("instance-key").build();
+
+    CloudFoundryServerGroup onDemandCloudFoundryServerGroup =
+        CloudFoundryServerGroup.builder()
+            .name("serverGroupName")
+            .id("sg-guid-1")
+            .account(accountName)
+            .space(cloudFoundrySpace)
+            .diskQuota(1024)
+            .instances(singleton(cloudFoundryInstance))
+            .build();
+
+    Map<String, Collection<String>> serverGroupRelationships =
+        HashMap.<String, Collection<String>>of(
+                INSTANCES.getNs(),
+                singleton(Keys.getInstanceKey(accountName, cloudFoundryInstance.getName())),
+                LOAD_BALANCERS.getNs(),
+                emptyList())
+            .toJavaMap();
+
+    ResourceCacheData onDemandCacheResults =
+        new ResourceCacheData(
+            Keys.getServerGroupKey(
+                accountName,
+                onDemandCloudFoundryServerGroup.getName(),
+                onDemandCloudFoundryServerGroup.getRegion()),
+            cacheView(onDemandCloudFoundryServerGroup),
+            serverGroupRelationships);
+
+    CacheData cacheData =
+        cloudFoundryServerGroupCachingAgent.buildOnDemandCacheData(
+            Keys.getServerGroupKey(
+                accountName,
+                onDemandCloudFoundryServerGroup.getName(),
+                onDemandCloudFoundryServerGroup.getRegion()),
+            Collections.singletonMap(
+                SERVER_GROUPS.getNs(), Collections.singleton(onDemandCacheResults)));
+
+    ResourceCacheData result =
+        objectMapper
+            .readValue(
+                cacheData.getAttributes().get("cacheResults").toString(),
+                new TypeReference<Map<String, Collection<ResourceCacheData>>>() {})
+            .get("serverGroups").stream()
+            .findFirst()
+            .get();
+
+    assertThat(result).isEqualToComparingFieldByFieldRecursively(onDemandCacheResults);
+  }
 
   @Test
   void handleShouldReturnNullWhenAccountDoesNotMatch() {

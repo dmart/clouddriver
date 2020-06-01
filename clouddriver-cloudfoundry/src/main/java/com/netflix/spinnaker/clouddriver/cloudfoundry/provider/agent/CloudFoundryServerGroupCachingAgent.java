@@ -22,25 +22,29 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toSet;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.ImmutableMap;
 import com.netflix.frigga.Names;
 import com.netflix.spectator.api.Registry;
 import com.netflix.spinnaker.cats.agent.AgentDataType;
 import com.netflix.spinnaker.cats.agent.CacheResult;
 import com.netflix.spinnaker.cats.agent.DefaultCacheResult;
 import com.netflix.spinnaker.cats.cache.CacheData;
+import com.netflix.spinnaker.cats.cache.DefaultCacheData;
 import com.netflix.spinnaker.cats.cache.RelationshipCacheFilter;
 import com.netflix.spinnaker.cats.provider.ProviderCache;
 import com.netflix.spinnaker.clouddriver.cache.OnDemandAgent;
 import com.netflix.spinnaker.clouddriver.cloudfoundry.cache.Keys;
 import com.netflix.spinnaker.clouddriver.cloudfoundry.cache.ResourceCacheData;
-import com.netflix.spinnaker.clouddriver.cloudfoundry.client.CloudFoundryClient;
 import com.netflix.spinnaker.clouddriver.cloudfoundry.model.*;
 import com.netflix.spinnaker.clouddriver.cloudfoundry.provider.CloudFoundryProvider;
+import com.netflix.spinnaker.clouddriver.cloudfoundry.security.CloudFoundryCredentials;
 import com.netflix.spinnaker.moniker.Moniker;
 import io.vavr.collection.HashMap;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -59,8 +63,8 @@ public class CloudFoundryServerGroupCachingAgent extends AbstractCloudFoundryCac
           AUTHORITATIVE.forType(INSTANCES.getNs()));
 
   public CloudFoundryServerGroupCachingAgent(
-      String account, CloudFoundryClient client, Registry registry) {
-    super(account, client, registry);
+      CloudFoundryCredentials cloudFoundryCredentials, Registry registry) {
+    super(cloudFoundryCredentials, registry);
   }
 
   @Override
@@ -157,7 +161,7 @@ public class CloudFoundryServerGroupCachingAgent extends AbstractCloudFoundryCac
             .getApplications()
             .findServerGroupByNameAndSpaceId(serverGroupName, space.getId());
 
-    String serverGroupKey = Keys.getServerGroupKey(this.getAccount(), serverGroupName, region);
+    String serverGroupKey = Keys.getServerGroupKey(this.getAccountName(), serverGroupName, region);
     Map<String, Collection<String>> evictions;
     DefaultCacheResult serverGroupCacheResults;
 
@@ -190,7 +194,7 @@ public class CloudFoundryServerGroupCachingAgent extends AbstractCloudFoundryCac
   public Collection<Map> pendingOnDemandRequests(ProviderCache providerCache) {
     Collection<String> keys =
         providerCache.filterIdentifiers(
-            ON_DEMAND.getNs(), Keys.getServerGroupKey(this.getAccount(), "*", "*"));
+            ON_DEMAND.getNs(), Keys.getServerGroupKey(this.getAccountName(), "*", "*"));
     return providerCache.getAll(ON_DEMAND.getNs(), keys, RelationshipCacheFilter.none()).stream()
         .map(
             it -> {
@@ -243,7 +247,7 @@ public class CloudFoundryServerGroupCachingAgent extends AbstractCloudFoundryCac
       Map<String, CacheData> onDemandCacheDataToKeep,
       CloudFoundryServerGroup serverGroup,
       long start) {
-    String account = this.getAccount();
+    String account = this.getAccountName();
     String key = Keys.getServerGroupKey(account, serverGroup.getName(), serverGroup.getRegion());
     CacheData sgCacheData = onDemandCacheDataToKeep.get(key);
     if (sgCacheData != null && (long) sgCacheData.getAttributes().get("cacheTime") > start) {
@@ -270,7 +274,7 @@ public class CloudFoundryServerGroupCachingAgent extends AbstractCloudFoundryCac
   }
 
   private CacheData buildClusterCacheData(CloudFoundryCluster cluster) {
-    String account = this.getAccount();
+    String account = this.getAccountName();
     return new ResourceCacheData(
         Keys.getClusterKey(account, cluster.getMoniker().getApp(), cluster.getName()),
         cacheView(cluster),
@@ -282,7 +286,7 @@ public class CloudFoundryServerGroupCachingAgent extends AbstractCloudFoundryCac
   }
 
   private CacheData buildServerGroupCacheData(CloudFoundryServerGroup serverGroup) {
-    String account = this.getAccount();
+    String account = this.getAccountName();
     return new ResourceCacheData(
         Keys.getServerGroupKey(account, serverGroup.getName(), serverGroup.getRegion()),
         cacheView(serverGroup),
@@ -303,8 +307,28 @@ public class CloudFoundryServerGroupCachingAgent extends AbstractCloudFoundryCac
 
   private CacheData buildInstanceCacheData(CloudFoundryInstance instance) {
     return new ResourceCacheData(
-        Keys.getInstanceKey(this.getAccount(), instance.getName()),
+        Keys.getInstanceKey(this.getAccountName(), instance.getName()),
         cacheView(instance),
         emptyMap());
+  }
+
+  @Override
+  CacheData buildOnDemandCacheData(String key, Map<String, Collection<CacheData>> cacheResult) {
+    try {
+      return new DefaultCacheData(
+          key,
+          (int) TimeUnit.MINUTES.toSeconds(10), // ttl
+          ImmutableMap.of(
+              "cacheTime",
+              this.getInternalClock().instant().toEpochMilli(),
+              "cacheResults",
+              cacheViewMapper.writeValueAsString(cacheResult),
+              "processedCount",
+              0),
+          emptyMap(),
+          this.getInternalClock());
+    } catch (JsonProcessingException serializationException) {
+      throw new RuntimeException("cache results serialization failed", serializationException);
+    }
   }
 }

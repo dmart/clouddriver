@@ -43,6 +43,7 @@ public class TitusDeployDescription extends AbstractTitusCredentialsDescription
   private Map<String, String> labels = new LinkedHashMap<>();
   private Map<String, String> containerAttributes = new LinkedHashMap<>();
   private String entryPoint;
+  private String cmd;
   private String iamProfile;
   private String capacityGroup;
   private String user;
@@ -135,6 +136,10 @@ public class TitusDeployDescription extends AbstractTitusCredentialsDescription
             .disruptionBudget(disruptionBudget)
             .signedAddressAllocations(resources.getSignedAddressAllocations())
             .serviceJobProcesses(serviceJobProcesses);
+
+    if (cmd != null && !cmd.isEmpty()) {
+      submitJobRequest.cmd(cmd);
+    }
 
     if (!securityGroups.isEmpty()) {
       submitJobRequest.securityGroups(securityGroups);
@@ -336,6 +341,14 @@ public class TitusDeployDescription extends AbstractTitusCredentialsDescription
 
   public void setEntryPoint(String entryPoint) {
     this.entryPoint = entryPoint;
+  }
+
+  public String getCmd() {
+    return cmd;
+  }
+
+  public void setCmd(String cmd) {
+    this.cmd = cmd;
   }
 
   public String getIamProfile() {
