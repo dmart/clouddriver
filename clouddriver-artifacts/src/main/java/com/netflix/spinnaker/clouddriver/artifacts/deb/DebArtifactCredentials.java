@@ -18,13 +18,11 @@ package com.netflix.spinnaker.clouddriver.artifacts.deb;
 
 import com.google.common.collect.ImmutableList;
 import com.netflix.spinnaker.clouddriver.artifacts.config.ArtifactCredentials;
-import com.netflix.spinnaker.kork.annotations.NonnullByDefault;
 import com.netflix.spinnaker.kork.artifacts.model.Artifact;
 import java.io.InputStream;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
-@NonnullByDefault
 @Slf4j
 final class DebArtifactCredentials implements ArtifactCredentials {
   public static final String TYPE = "deb/file";

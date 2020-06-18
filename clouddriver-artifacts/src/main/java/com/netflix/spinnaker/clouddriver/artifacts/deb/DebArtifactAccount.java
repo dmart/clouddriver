@@ -17,10 +17,8 @@
 package com.netflix.spinnaker.clouddriver.artifacts.deb;
 
 import com.netflix.spinnaker.clouddriver.artifacts.config.ArtifactAccount;
-import com.netflix.spinnaker.kork.annotations.NonnullByDefault;
 import lombok.Value;
 
-@NonnullByDefault
 @Value
 public class DebArtifactAccount implements ArtifactAccount {
   @Override
