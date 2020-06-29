@@ -25,7 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 final class DebArtifactCredentials implements ArtifactCredentials {
-  public static final String TYPE = "deb/file";
+  public static final String TYPE = "deb";
 
   @Getter private final String name;
   @Getter private final ImmutableList<String> types = ImmutableList.of(TYPE);
