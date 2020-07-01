@@ -49,7 +49,7 @@ subprojects {
           username smartThingsUserName
           password smartThingsPassword
         }
-        url "https://smartthings.artifactoryonline.com/smartthings/libs-release-local"
+        url "https://smartthings.jfrog.io/smartthings/libs-release-local"
       }
     }
   }
