@@ -21,6 +21,7 @@ import com.netflix.spinnaker.clouddriver.core.services.Front50Service
 import com.netflix.spinnaker.clouddriver.exceptions.SpinnakerHttpException
 import com.netflix.spinnaker.clouddriver.exceptions.SpinnakerNetworkException
 import com.netflix.spinnaker.clouddriver.exceptions.SpinnakerServerException
+import com.netflix.spinnaker.clouddriver.smartthings.EnvironmentKt
 import com.netflix.spinnaker.kork.web.exceptions.NotFoundException
 import org.springframework.beans.factory.annotation.Autowired
 import retrofit.RetrofitError
@@ -120,6 +121,7 @@ class LocalFileUserDataProvider implements UserDataProvider {
       .replace('%%account%%', account)
       .replace('%%accounttype%%', accountType)
       .replace('%%env%%', useAccountNameAsEnvironment ? account : environment)
+      .replace('%%environment%%', EnvironmentKt.getEnvFromStack(stack))
       .replace('%%app%%', names.app)
       .replace('%%region%%', region)
       .replace('%%group%%', names.group)

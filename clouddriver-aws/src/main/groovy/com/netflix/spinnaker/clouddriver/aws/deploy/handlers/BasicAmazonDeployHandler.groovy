@@ -23,6 +23,7 @@ import com.amazonaws.services.ec2.model.DescribeSecurityGroupsRequest
 import com.google.common.annotations.VisibleForTesting
 import com.netflix.frigga.Names
 import com.netflix.spinnaker.clouddriver.aws.AmazonCloudProvider
+import com.netflix.spinnaker.clouddriver.smartthings.EnvironmentKt
 import com.netflix.spinnaker.config.AwsConfiguration
 import com.netflix.spinnaker.config.AwsConfiguration.DeployDefaults
 import com.netflix.spinnaker.clouddriver.aws.deploy.AmiIdResolver
@@ -598,23 +599,20 @@ class BasicAmazonDeployHandler implements DeployHandler<BasicAmazonDeployDescrip
     description = description.clone()
 
     if (description.application) {
-      description.tags["spinnaker:application"] = description.application
-    } else {
-      description.tags.remove("spinnaker:application")
+      if (!description.tags.get("app")) description.tags["app"] = description.application
+      if (!description.tags.get("GBL_CLASS_1")) description.tags["GBL_CLASS_1"] = description.tags["app"]
     }
-
 
     if (description.stack) {
-      description.tags["spinnaker:stack"] = description.stack
-    } else {
-      description.tags.remove("spinnaker:stack")
+      if (!description.tags.get("stack")) description.tags["stack"] = description.stack
+      if (!description.tags.get("env"))
+        description.tags["env"] = EnvironmentKt.getEnvFromStack(description.tags["stack"])
     }
 
+    if (!description.tags.get("GBL_CLASS_0")) description.tags["GBL_CLASS_0"] = "SERVICE"
 
     if (description.freeFormDetails) {
-      description.tags["spinnaker:details"] = description.freeFormDetails
-    } else {
-      description.tags.remove("spinnaker:details")
+      if (!description.tags.get("detail")) description.tags["detail"] = description.freeFormDetails
     }
 
     return description
