@@ -20,6 +20,7 @@ import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.AWSSessionCredentials;
 import com.amazonaws.auth.AWSSessionCredentialsProvider;
 import com.amazonaws.auth.STSAssumeRoleSessionCredentialsProvider;
+import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClient;
 import com.netflix.spinnaker.clouddriver.aws.security.sdkclient.SpinnakerAwsRegionProvider;
 import java.io.Closeable;
@@ -41,26 +42,23 @@ public class NetflixSTSAssumeRoleSessionCredentialsProvider
     var chain = new SpinnakerAwsRegionProvider();
     var region = chain.getRegion();
 
+    var stsClientBuilder = AWSSecurityTokenServiceClient.builder()
+      .withCredentials(longLivedCredentialsProvider)
+      .withRegion(region);
+
+    if (roleArn.contains("aws-us-gov")) {
+      stsClientBuilder.withEndpointConfiguration(
+        new AwsClientBuilder.EndpointConfiguration("sts.us-gov-west-1.amazonaws.com", region));
+    } else if (roleArn.contains("aws-cn")) {
+      stsClientBuilder.withEndpointConfiguration(
+        new AwsClientBuilder.EndpointConfiguration("sts.cn-north-1.amazonaws.com.cn", region));
+    }
+
     delegate =
         new STSAssumeRoleSessionCredentialsProvider.Builder(roleArn, roleSessionName)
             .withExternalId(externalId)
-            .withStsClient(
-                AWSSecurityTokenServiceClient.builder()
-                    .withCredentials(longLivedCredentialsProvider)
-                    .withRegion(region)
-                    .build())
+            .withStsClient(stsClientBuilder.build())
             .build();
-
-    /**
-     * Need to explicitly set sts region if GovCloud or China as per
-     * https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/auth/STSAssumeRoleSessionCredentialsProvider.html
-     */
-    if (roleArn.contains("aws-us-gov")) {
-      delegate.setSTSClientEndpoint("sts.us-gov-west-1.amazonaws.com");
-    }
-    if (roleArn.contains("aws-cn")) {
-      delegate.setSTSClientEndpoint("sts.cn-north-1.amazonaws.com.cn");
-    }
   }
 
   public String getAccountId() {
